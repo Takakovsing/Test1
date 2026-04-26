@@ -1,0 +1,620 @@
+(function() { 
+    console.clear();
+    console.log("[+] Versão Beta");
+    console.log("[+] Feito por https://github.com/takakoxd/");
+
+    // Variáveis globais para o timer bypass
+    let timerBypassActive = false;
+    let originalTimer = null;
+    let bypassInterval = null;
+    let startTime = null;
+    let elapsedTime = 0;
+
+    // Variáveis de controle do Auto Next Page
+    let autoNextPageInterval = null;
+    let autoNextPageStartTime = null;
+    let autoNextPageElapsed = 0;
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+
+    class NotificationSystem {
+        constructor() {
+            this.container = document.querySelector('.notification-container') || document.createElement('div');
+            this.container.className = 'notification-container';
+            document.body.appendChild(this.container);
+            this.notifications = [];
+        }
+
+        show({ type='info', title=this.getDefaultTitle(type), message='', duration=5000, closable=true, showProgress=true, onClose=null } = {}) {
+        const n = document.createElement('div');
+        n.className = `notification ${type}`;
+        const icon = this.getIcon(type);
+        n.innerHTML = `
+            <div class="notification-icon">${icon}</div>
+            <div class="notification-content">
+            <div class="notification-title">${title}</div>
+            ${message ? `<div class="notification-message">${message}</div>` : ''}
+            </div>
+            ${closable ? '<button class="notification-close">×</button>' : ''}
+            ${showProgress && duration>0 ? '<div class="notification-progress"></div>' : ''}
+        `;
+        if (closable) n.querySelector('.notification-close').onclick = () => this.close(n, onClose);
+        this.container.appendChild(n);
+        this.notifications.push(n);
+
+        if (duration > 0) {
+            const bar = n.querySelector('.notification-progress');
+            if (bar && showProgress) {
+            bar.style.transition = `transform ${duration}ms linear`;
+            setTimeout(()=>bar.style.transform='scaleX(0)',10);
+            }
+            setTimeout(()=>this.close(n,onClose),duration);
+        }
+        }
+
+        close(n,cb){ n.classList.add('closing'); setTimeout(()=>{n.remove(); if(cb)cb();},400); }
+        getIcon(t){ return {success:'✓',error:'✕',warning:'!',info:'i'}[t]||'i'; }
+        getDefaultTitle(t){ return {success:'Sucesso!',error:'Erro!',warning:'Atenção!',info:'Informação'}[t]||'Info'; }
+        success(m,o={}){this.show({...o,type:'success',message:m});}
+        error(m,o={}){this.show({...o,type:'error',message:m});}
+        warning(m,o={}){this.show({...o,type:'warning',message:m});}
+        info(m,o={}){this.show({...o,type:'info',message:m});}
+        }
+
+
+    const STYLE = document.createElement("style");
+    STYLE.innerHTML = `
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(79, 172, 254, 0.6);
+            border-radius: 50%;
+            animation: float 8s infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 24px;
+            padding: 35px;
+            min-width: 450px;
+            max-width: 550px;
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.3),
+                0 8px 40px rgba(79, 172, 254, 0.1),
+                0 4px 20px rgba(255, 255, 255, 0.05) inset,
+                0 1px 2px rgba(255, 255, 255, 0.2) inset;
+            animation: modalSlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center center;
+        }
+
+        .modal.minimized {
+            transform: scale(0.2) translateX(calc(50vw - 100px)) translateY(calc(50vh - 40px));
+            min-width: 200px;
+            padding: 15px;
+            border-radius: 20px;
+        }
+
+        .modal.minimized .modal-content {
+            display: none;
+        }
+
+        .modal.minimized .minimized-content {
+            display: block;
+        }
+
+        .minimized-content {
+            display: none;
+            text-align: center;
+        }
+
+        .modal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, 
+                transparent,
+                rgba(79, 172, 254, 0.6),
+                rgba(255, 255, 255, 0.4),
+                rgba(79, 172, 254, 0.6),
+                transparent
+            );
+            animation: shimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.9) rotateX(10deg);
+                filter: blur(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1) rotateX(0deg);
+                filter: blur(0px);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        
+        .modal h2 {
+            pointer-events: none;
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 28px;
+            font-weight: 700;
+            text-shadow: 0 4px 20px rgba(79, 172, 254, 0.3);
+            letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            flex: 1;
+            text-align: center;
+        }
+
+        .minimize-btn {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .minimize-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 8px 20px rgba(79, 172, 254, 0.3);
+        }
+
+        .config-section {
+            margin-bottom: 30px;
+        }
+
+        .config-section h3 {
+            pointer-events: none;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 25px;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .option-group {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .option-group::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .option-group:hover::before {
+            left: 100%;
+        }
+
+        .option-group:hover {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+            border-color: rgba(79, 172, 254, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .option-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .option-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .option-label {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 58px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .toggle-switch::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .toggle-switch.active::before {
+            opacity: 1;
+        }
+
+        .toggle-switch.active {
+            border-color: rgba(79, 172, 254, 0.6);
+            box-shadow: 0 0 20px rgba(79, 172, 254, 0.4);
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1;
+        }
+
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(28px);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .input-field {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px 18px;
+            color: white;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 90px;
+            text-align: center;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: rgba(79, 172, 254, 0.6);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.2);
+            transform: scale(1.02);
+        }
+
+        .input-field::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 18px;
+            justify-content: center;
+            margin-top: 35px;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.5px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 15px 40px rgba(255, 255, 255, 0.1);
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 
+                0 0 20px #00ff88,
+                0 0 40px rgba(0, 255, 136, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { 
+                opacity: 1; 
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.7; 
+                transform: scale(1.2);
+            }
+        }
+
+        .version-tag {
+            position: absolute; 
+            align-items: center;
+            bottom: 5px;
+            right: 200px;
+            background: rgba(0, 0, 0, 0.3);
+            color: rgba(255, 255, 255, 0.7);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .expand-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 10px 20px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .expand-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4);
+        }
+
+        .status-badge {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+    `;
+
+    window.notify = new NotificationSystem();
+    document.head.appendChild(STYLE);
+
+    notify.success("Leia parana BETA VERSION iniciado");
+    notify.warning("Feito por github.com/takakoxd");
+    notify.error("Caso encontre um bug reporte no github");
+
+    const modal = document.createElement("div");
+    modal.className = "modal";
+    modal.id = "modal";
+    
+    modal.innerHTML = `
+        <div class="status-indicator"></div>
+        <div class="version-tag">BETA VERSION</div>
+        
+        <!-- Conteúdo principal -->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✨ Leia Parana Exploit</h2>
+                <div class="minimize-btn" onclick="minimizeModal()" title="Minimizar">
+                    ➖
+                </div>
+            </div>
+            
+            <div class="config-section">
+                <h3>📝 Configure da maneira desejada</h3>
+                
+                <div class="option-group">
+                    <div class="option-row">
+                        <span class="option-label">
+                            Auto Answer
+                            <span class="status-badge" id="autoAnswerStatus" style="display: none;">ATIVO</span>
+                        </span>
+                        <div class="toggle-switch" id="autoAnswerToggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="option-row">
+                        <span class="option-label"> 
+                            Auto Next Page
+                            <span class="status-badge" id="nextPageStatus" style="display: none;">ATIVO</span>
+                        </span>
+                        <div class="toggle-switch" id="autoNextPageToggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="option-row">
+                        <span class="option-label">
+                            Time Counter Bypass
+                            <span class="status-badge" id="bypassStatus" style="display: none;">ATIVO</span>
+                        </span>
+                        <div class="toggle-switch" id="timeCounterBypassToggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                    </div>
+
+                    <div class="option-row">
+                        <span class="option-label">Tempo em cada página (s)</span>
+                        <div class="input-group">
+                            <input type="number" class="input-field" id="timePagInput" value="180" min="1" max="7200">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="applySettings()">
+                    🚀 Aplicar Configurações/Start
+                </button>
+                <button class="btn btn-secondary" onclick="resetSettings()">
+                    🔄 Resetar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Conteúdo minimizado -->
+        <div class="minimized-content">
+            <h3 style="color: white; font-size: 16px; margin-bottom: 10px;">✨ Leia Parana</h3>
+            <button class="expand-btn" onclick="expandModal()">
+                🔧 Abrir Configurações
+            </button>
+        </div>
+    `;
+
+      const style = document.createElement('style');
+  style.textContent = `
+  * { box-sizing: border-box; }
+
+  .notification-container {
+    position: fixed; top: 24px; right: 24px; z-index: 9999;
+    display: flex; flex-direction: column; gap: 16px; max-width: 420px;
+  }
+
+  .notification {
+    background: rgba(10,10,15,0.65);
+    backdrop-filter: blur(25px) saturate(180%);
+    -webkit-backdrop-filter: blur(25px) saturate(180%);
+    padding: 20px 24px;
+    border-radius: 18px;
