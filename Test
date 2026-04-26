@@ -1,0 +1,157 @@
+(function() {
+console.clear();
+console.log("[+] Versão Beta");
+console.log("[+] Feito por https://takakoxd/");
+
+// Variáveis globais para o timer bypass
+let timerBypassActive = false;
+let originalTimer = null;
+let bypassInterval = null;
+let startTime = null;
+let elapsedTime = 0;
+
+// Variáveis de controle do Auto Next Page
+let autoNextPageInterval = null;
+let autoNextPageStartTime = null;
+let autoNextPageElapsed = 0;
+
+const overlay = document.createElement("div");
+overlay.className = "modal-overlay";
+
+class NotificationSystem {
+constructor() {
+this.container = document.querySelector('.notification-container') || document.createElement('div');
+this.container.className = 'notification-container';
+document.body.appendChild(this.container);
+this.notifications = [];
+}
+
+show({ type='info', title=this.getDefaultTitle(type), message='', duration=5000, closable=true, showProgress=true, onClose=null } = {}) {    
+const n = document.createElement('div');    
+n.className = `notification ${type}`;    
+const icon = this.getIcon(type);    
+n.innerHTML = `    
+    <div class="notification-icon">${icon}</div>    
+    <div class="notification-content">    
+    <div class="notification-title">${title}</div>    
+    ${message ? `<div class="notification-message">${message}</div>` : ''}    
+    </div>    
+    ${closable ? '<button class="notification-close">×</button>' : ''}    
+    ${showProgress && duration>0 ? '<div class="notification-progress"></div>' : ''}    
+`;    
+if (closable) n.querySelector('.notification-close').onclick = () => this.close(n, onClose);    
+this.container.appendChild(n);    
+this.notifications.push(n);    
+
+if (duration > 0) {    
+    const bar = n.querySelector('.notification-progress');    
+    if (bar && showProgress) {    
+    bar.style.transition = `transform ${duration}ms linear`;    
+    setTimeout(()=>bar.style.transform='scaleX(0)',10);    
+    }    
+    setTimeout(()=>this.close(n,onClose),duration);    
+}    
+}    
+
+close(n,cb){ n.classList.add('closing'); setTimeout(()=>{n.remove(); if(cb)cb();},400); }    
+getIcon(t){ return {success:'✓',error:'✕',warning:'!',info:'i'}[t]||'i'; }    
+getDefaultTitle(t){ return {success:'Sucesso!',error:'Erro!',warning:'Atenção!',info:'Informação'}[t]||'Info'; }    
+success(m,o={}){this.show({...o,type:'success',message:m});}    
+error(m,o={}){this.show({...o,type:'error',message:m});}    
+warning(m,o={}){this.show({...o,type:'warning',message:m});}    
+info(m,o={}){this.show({...o,type:'info',message:m});}    
+}
+
+const STYLE = document.createElement("style");
+STYLE.innerHTML = `
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {    
+    font-family: 'SF Pro Display', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;    
+}    
+
+.notification-container {
+position: fixed; top: 24px; right: 24px; z-index: 9999;
+display: flex; flex-direction: column; gap: 16px; max-width: 420px;
+}
+
+.notification {
+background: rgba(10,10,15,0.65);
+
+/* 🔥 BLUR REMOVIDO */
+backdrop-filter: none;
+-webkit-backdrop-filter: none;
+
+padding: 20px 24px;
+border-radius: 18px;
+
+border: 1px solid rgba(255,255,255,0.08);
+box-shadow:
+0 10px 30px rgba(0,0,0,0.4),
+inset 0 1px 0 rgba(255,255,255,0.05);
+
+display: flex;
+align-items: center;
+gap: 16px;
+
+animation: slideIn 0.4s ease;
+}
+
+.notification.success { border-left: 4px solid #00ff88; }
+.notification.error { border-left: 4px solid #ff4d4d; }
+.notification.warning { border-left: 4px solid #ffaa00; }
+.notification.info { border-left: 4px solid #4facfe; }
+
+.notification-icon {
+font-size: 18px;
+font-weight: bold;
+}
+
+.notification-content {
+flex: 1;
+}
+
+.notification-title {
+color: white;
+font-size: 15px;
+font-weight: 600;
+margin-bottom: 2px;
+}
+
+.notification-message {
+color: rgba(255,255,255,0.7);
+font-size: 13px;
+}
+
+.notification-close {
+background: transparent;
+border: none;
+color: rgba(255,255,255,0.6);
+font-size: 18px;
+cursor: pointer;
+}
+
+.notification-progress {
+position: absolute;
+bottom: 0;
+left: 0;
+height: 3px;
+width: 100%;
+background: linear-gradient(90deg,#4facfe,#00f2fe);
+transform-origin: left;
+}
+
+@keyframes slideIn {
+from { opacity: 0; transform: translateX(50px); }
+to { opacity: 1; transform: translateX(0); }
+}
+`;
+
+window.notify = new NotificationSystem();
+document.head.appendChild(STYLE);
+
+notify.success("Leia parana BETA VERSION iniciado");
+notify.warning("Feito por github.com/takakoxd");
+notify.error("Caso encontre um bug reporte no github");
+
+})();
